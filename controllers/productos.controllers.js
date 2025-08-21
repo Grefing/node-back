@@ -1,125 +1,115 @@
+// Servicios de los productos
+const { validationResult } = require("express-validator");
+const productServices = require("../services/productos.services");
 
-let productos = [
-  {
-    id: 1,
-    nombre: "Producto 1",
-    precio: 100,
-  },
-  {
-    id: 2,
-    nombre: "Producto 2",
-    precio: 200,
-  },
-  {
-    id: 3,
-    nombre: "Producto 3",
-    precio: 300,
-  },
-];
-
-
-const getProducts = (req, res) => {
+const getProducts = async (req, res) => {
   try {
-    if (req.query.id) {
-      const producto = productos.find(
-        (producto) => producto.id === parseInt(req.query.id)
-      );
+    const { id } = req.query;
+    const limit = req.query.limit || 10;
+    const to = req.query.to || 0;
+
+    if (id) {
+      const producto = await productServices.getProduct(id);
       res.status(200).json(producto);
     } else {
-      res.status(200).json({
-        message: "Productos obtenidos correctamente",
-        data: productos,
-      });
+      const result = await productServices.getAllProducts(limit, to);
+      res.status(200).json(result);
     }
   } catch (e) {
-    res.status(500).json(e);
+    res
+      .status(500)
+      .json({ message: "Error interno del servidor", error: e.message });
   }
 };
 
-const getProductById = (req, res) => {
+const getProductById = async (req, res) => {
   try {
     const { idProducto } = req.params;
+    const producto = await productServices.getProduct(idProducto);
 
-    const producto = productos.find(
-      (producto) => producto.id === parseInt(idProducto)
-    );
-    if (!producto) {
-      return res.status(404).json({ message: "Producto no encontrado" });
-    } else {
-      res.json(producto);
-    }
+    res.json(producto);
   } catch (e) {
-    res.status(500).json(e);
+    if (e.message === "Producto no encontrado") {
+      return res.status(404).json({ message: e.message });
+    }
+    res
+      .status(500)
+      .json({ message: "Error interno del servidor", error: e.message });
   }
 };
 
-const createProduct = (req, res) => {
+const createProduct = async (req, res) => {
   try {
-    const { nombre, precio } = req.body;
-    const nuevoProducto = {
-      id: productos.length > 0 ? productos[productos.length - 1].id + 1 : 1,
-      nombre,
-      precio,
-    };
-    console.log(nuevoProducto);
+    const { errors } = validationResult(req);
 
-    productos.push(nuevoProducto);
+    if (errors.length) {
+      return res.status(400).json({ message: errors[0].msg });
+    }
+
+    const { body } = req;
+
+    if (!body) {
+      return res
+        .status(400)
+        .json({ message: "Body de la petición vacío o inválido" });
+    }
+
+    const newProduct = await productServices.createNewProduct(body);
+
     res.status(201).json({
       message: "Producto creado correctamente",
-      data: nuevoProducto,
+      data: newProduct,
     });
   } catch (e) {
-    res.status(500).json({ message: "Error al crear el producto", error: e });
+    res
+      .status(500)
+      .json({ message: "Error al crear el producto", error: e.message });
   }
 };
 
-const updateProduct = (req, res) => {
+const updateProduct = async (req, res) => {
   try {
-    const idProducto = req.params.idProducto;
-    const { nombre, precio } = req.body;
+    const { errors } = validationResult(req);
 
-    const producto = productos.find((prod) => prod.id === parseInt(idProducto));
-
-    if (!producto) {
-      return res.status(404).json({ message: "Producto no encontrado" });
+    if (errors.length) {
+      return res.status(400).json({ message: errors[0].msg });
     }
 
-    producto.nombre = nombre;
-    producto.precio = precio;
+    const { idProducto } = req.params;
+    const { body } = req;
+
+    const updatedProduct = await productServices.modifyProduct(
+      idProducto,
+      body
+    );
 
     res.status(200).json({
       message: "Producto modificado correctamente",
-      data: producto,
+      data: updatedProduct,
     });
   } catch (e) {
     res
       .status(500)
-      .json({ message: "Error al modificar el producto", error: e });
+      .json({ message: "Error al modificar el producto", error: e.message });
   }
 };
 
-const deleteProduct = (req, res) => {
+const deleteProduct = async (req, res) => {
   try {
-    const idProducto = req.params.idProducto;
-    const producto = productos.find((prod) => prod.id === parseInt(idProducto));
+    const { idProducto } = req.params;
 
-    if (!producto) {
-      return res.status(404).json({ message: "Producto no encontrado" });
+    const response = await productServices.deleteProductById(idProducto);
+
+    if (response.status === 200) {
+      return res.status(200).json({
+        message: "Producto eliminado correctamente",
+        data: response.deletedProduct,
+      });
     }
-
-    const arrayActualizado = productos.filter(
-      (producto) => producto.id !== parseInt(idProducto)
-    );
-    productos = arrayActualizado;
-
-    res.status(200).json({
-      message: "Producto eliminado correctamente",
-      data: productos,
-    });
   } catch (e) {
     res
       .status(500)
-      .json({ message: "Error al eliminar el producto", error: e });
+      .json({ message: "Error al eliminar el producto", error: e.message });
   }
 };
 

@@ -1,13 +1,15 @@
+require('../db/config')
 const express = require("express");
 const path = require("path");
 const cors = require("cors");
+const morgan = require('morgan');
 
 
 class Server {
   constructor() {
     this.app = express();
     this.port = process.env.PORT || 8080;
-
+    
     this.middlewares();
     this.routes();
   }
@@ -21,13 +23,16 @@ class Server {
 
     // static files
     this.app.use(express.static(path.join(__dirname, "../public")));
+
+    // morgan
+    this.app.use(morgan('dev'));
   }
 
   routes() {
     this.app.use('/api/productos', require('../routes/productos.routes'))
     this.app.use('/api/usuarios', require('../routes/usuarios.routes'))
   }
-
+  
   listen() {
     this.app.listen(this.port, () => {
       console.log(`Server is running on port ${this.port}`);

@@ -1,128 +1,130 @@
-let usuarios = [
-  {
-    id: 1,
-    username: "Juan123",
-    email: "juan123@gmail.com",
-    password: "123456",
-  },
-];
+const { token } = require("morgan");
+const userServices = require("../services/usuarios.services");
+const { validationResult } = require("express-validator");
 
-const createUser = (req, res) => {
+const createUser = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { errors } = validationResult(req);
 
-    const existUsername = usuarios.find((user) => user.username === username);
-    const existEmail = usuarios.find((user) => user.email === email);
-
-    if (existUsername) {
-      return res
-        .status(400)
-        .json({ message: "El nombre de usuario ya existe" });
-    } else if (existEmail) {
-      return res.status(400).json({ message: "El email ya existe" });
+    if (errors.length) {
+      return res.status(400).json({ message: errors[0].msg });
     }
 
-    const newUser = {
-      //   id: crypto.randomUUID(),
-      id: usuarios.length + 1,
-      baja: false,
-      username,
-      email,
-      password,
-    };
+    const { body } = req;
 
-    usuarios.push(newUser);
-    res.status(201).json(newUser);
+    const response = await userServices.registerUser(body);
+
+    // if (response.status === 400) {
+    //   return res.status(400).json({ message: response.message });
+    // } else if (response.status === 409){
+    //   return res.status(409).json({ message: response.message });
+    // }
+
+    res.status(201).json({
+      message: response.message,
+      data: response.user,
+    });
+
   } catch (e) {
+    console.log(e);
+
     res.status(500).json({
-      msg: "Error al crear el usuario",
+      message: "Error al crear el usuario",
+      error: e.message,
     });
   }
 };
 
-const getUsers = (req, res) => {
+const login = async (req, res) => {
   try {
-    const { id } = req.query;
+    const result = await userServices.loginUser(req.body);
 
-    if (id) {
-      const user = usuarios.find((user) => user.id === parseInt(id));
-      if (user) {
-        return res.status(200).json(user);
-      } else {
-        return res.status(404).json({ message: "Usuario no encontrado" });
-      }
+    if (result.status === 400) {
+      res.status(400).json({
+        message: result.message,
+      });
+    } else {
+      res.status(200).json({
+        status: result.status,
+        message: result.message,
+        token: result.token
+      });
     }
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({
+      message: "Error loguear el usuario",
+      error: e.message,
+    });
+  } 
+};
 
+const getUsers = async (req, res) => {
+  try {
+    const usuarios = await userServices.getAllUsers();
     res.status(200).json(usuarios);
   } catch (e) {
     res.status(500).json({
       message: "Error al obtener los usuarios",
+      error: e.message,
     });
   }
 };
 
-const getUserById = (req, res) => {
+const getUserById = async (req, res) => {
   try {
-    const { idUser } = req.params;
-    const user = usuarios.find((user) => user.id === parseInt(idUser));
+    const { errors } = validationResult(req);
 
-    if (!user) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
+    if (errors.length) {
+      return res.status(400).json({ message: errors[0].msg });
     }
 
+    const { idUser } = req.params;
+    const user = await userServices.getUser(idUser);
     res.status(200).json(user);
   } catch (e) {
-    res.status(500).json({ message: "Error al obtener el usuario" });
+    res
+      .status(500)
+      .json({ message: "Error al obtener el usuario", error: e.message });
   }
 };
 
-const deleteUserFisically = (req, res) => {
+const deleteUserFisically = async (req, res) => {
   try {
     const { idUser } = req.params;
-    const user = usuarios.find((user) => user.id === parseInt(idUser));
+    const response = await userServices.delUserFisically(idUser);
 
-    if (!user) {
-      return res
-        .status(404)
-        .json({ message: "El usuario que desea eliminar no existe" });
-    } else {
-      const position = usuarios.findIndex(
-        (user) => (user.id = parseInt(idUser))
-      );
-      usuarios.splice(position, 1);
-      return res.status(200).json(usuarios);
-    }
+    res.status(200).json({
+      message: "Usuario eliminado fisicamente con exito",
+      data: response,
+    });
   } catch (e) {
-    res.status(500).json({ message: "Error al elimar el usuario" });
+    res
+      .status(500)
+      .json({ message: "Error al eliminar el usuario", error: e.message });
   }
 };
 
-const deleteUserLogically = (req, res) => {
+const deleteUserLogically = async (req, res) => {
   try {
     const { idUser } = req.params;
-    const user = usuarios.find((user) => user.id === parseInt(idUser));
-    
-   if (!user) {
-    return res.status(404).json({message: 'Usuario que desea dar de baja no existe'})
-   }
 
-   user.baja = !user.baja;
-
-   const message = user.baja ? 'Usuario dado de baja' : 'Usuario reestablecido'
-
-   res.status(200).json({
-     message: message,
-     user
-   })
-    
-    
+    const response = await userServices.delUserLogically(idUser);
+    res.status(200).json({
+      message: "Usuario dado de baja/alta",
+      data: response,
+    });
   } catch (e) {
-    res.status(500).json({ message: "Error al elimar el usuario" });
+    res.status(500).json({
+      message: "Error al cambiar estado del usuario",
+      error: e.message,
+    });
   }
 };
 
 module.exports = {
   createUser,
+  login,
   getUsers,
   getUserById,
   deleteUserFisically,
